@@ -1,0 +1,80 @@
+#!/bin/sh
+#delete any old conf file
+rm -f $(dirname $0)/config.mk
+
+HOST=""
+
+if [ -z "$PREFIX" ] ; then
+	PREFIX="/usr/local"
+fi
+
+if [ -z "$CFLAGS" ] ; then
+	CFLAGS="-Wall -Wextra"
+fi
+
+OPT=""
+
+for i in "$@"; do
+	case $i in
+		--with-sysroot=*)
+			SYSROOT="${i#*=}"
+			shift # past argument=value
+			;;
+		--cc=*)
+			CC="${i#*=}"
+			shift # past argument=value
+			;;
+		--cflags=*)
+			CFLAGS="${i#*=}"
+			shift
+			;;
+		--host=*)
+			HOST="${i#*=}"
+			shift # past argument=value
+			;;
+		--prefix=*)
+			PREFIX="${i#*=}"
+			shift # past argument=value
+			;;
+		--no-termios)
+			OPT="-DNO_TERMIOS $OPT"
+			shift
+			;;
+		--debug)
+			OPT="-DDEBUG $OPT"
+			shift
+			;;
+		-*|--*)
+			echo "Unknown option $i"
+			exit 1
+			;;
+		*)
+			;;
+	esac
+done
+
+#check tools
+if [ "$HOST" != "" ] ; then
+	PREV="${HOST}-"
+fi
+if [ "$CC" = "" ] ; then
+	if ${PREV}gcc --version > /dev/null 2>/dev/null ; then
+		CC="${PREV}gcc"
+	elif ${PREV}clang --version > /dev/null 2>/dev/null ; then
+		CC="${PREV}clang"
+	else
+		echo "error : no c compilator found"
+		exit 1
+	fi
+fi
+
+#if host is NULL get it from compiler
+if [ "$HOST" = "" ] ; then
+	HOST=$($CC -dumpmachine)
+fi
+
+echo "#generated automatically by ./configure" > config.mk
+echo "HOST=$HOST" >> config.mk
+echo "PREFIX=$PREFIX" >> config.mk
+echo "CC=$CC" >> config.mk
+echo "CFLAGS=$CFLAGS $OPT" >> config.mk

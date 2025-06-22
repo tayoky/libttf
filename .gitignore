@@ -1,0 +1,12 @@
+config.mk
+
+#binaries
+build
+*.a
+*.so
+*.o
+*.tar.*
+test
+
+#for testing
+*.ttf
