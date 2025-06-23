@@ -3,6 +3,33 @@
 #include "fileio.h"
 #include "ttf.h"
 
+uint32_t calc_checksum(ttf_file *file,ttf_table *table){
+	seek(file->file,table->offset);
+	uint32_t lenght = table->lenght;
+	uint32_t checksum = 0;
+	while(lenght > sizeof(uint32_t)){
+		checksum += read_u32(file->file);
+		lenght -= sizeof(uint32_t);
+	}
+
+	if(lenght > 0){
+		uint32_t last = 0;
+		int shift = 24;
+		while(lenght > 0){
+			last |= read_u8(file->file) << shift;
+			shift -= 8;
+			lenght--;
+		}
+		checksum += last;
+	}
+
+	//checksum adjustement for table head
+	if(table->tag == TAG("head")){
+		seek(file->file,table->offset + 8);
+		checksum -= read_u32(file->file);
+	}
+	return checksum;
+}
 
 ttf_file *ttf_open(const char *path){
 	FILE *file = fopen(path,"r");
@@ -22,11 +49,24 @@ ttf_file *ttf_open(const char *path){
 	printf("number of table %d\n",num_table);
 
 	for(int i=0; i<num_table; i++){
-		uint32_t tag = read_u32(file);
-		uint32_t checksum = read_u32(file);
-		uint32_t offset = read_u32(file);
-		uint32_t lenght = read_u32(file);
-		printf("table %x at %x size %d\n",tag,offset,lenght);
+		ttf_table *table = malloc(sizeof(ttf_table));
+		seek(file,12 + i * 16);
+		table->tag = read_u32(file);
+		table->checksum = read_u32(file);
+		table->offset = read_u32(file);
+		table->lenght = read_u32(file);
+		printf("table %x at %x size %d\n",table->tag,table->offset,table->lenght);
+		if(calc_checksum(font,table) != table->checksum){
+			printf("invalid checksum\n");
+		}
+
+		switch(table->tag){
+		default:
+			//unknow table
+			//we don't care we don't need that
+			free(table);
+			break;
+		}
 	}
 
 	return font;

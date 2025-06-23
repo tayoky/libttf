@@ -17,3 +17,7 @@ uint16_t read_u16(FILE *file){
 uint32_t read_u32(FILE *file){
 	return read_u16(file) << 16 | read_u16(file);
 }
+
+void seek(FILE *file,uint32_t offset){
+	fseek(file,offset,SEEK_SET);
+}
