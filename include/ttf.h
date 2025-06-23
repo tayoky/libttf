@@ -13,6 +13,8 @@ typedef struct ttf_table_struct {
 typedef struct ttf_file_struct {
 	FILE *file;
 	ttf_table head;
+	ttf_table cmap;
+	ttf_table glyf;
 } ttf_file;
 
 extern const char *__ttf_error;

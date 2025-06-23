@@ -68,6 +68,12 @@ ttf_file *ttf_open(const char *path){
 		case TAG("head"):
 			font->head = table;
 			break;
+		case TAG("cmap"):
+			font->cmap = table;
+			break;
+		case TAG("glyf"):
+			font->glyf = table;
+			break;
 		}
 	}
 
@@ -75,6 +81,44 @@ ttf_file *ttf_open(const char *path){
 		__ttf_error = "no head table";
 		goto error;
 	}
+	if(!font->cmap.offset){
+		__ttf_error = "no cmap table";
+		goto error;
+	}
+
+	//now we can start to parse the tables
+	if(font->head.lenght < 46){
+		__ttf_error = "to small head table";
+		goto error;
+	}
+	seek(file,font->head.offset);
+	//major = 1, minor = 0
+	if(read_u16(file) != 1 || read_u16(file) != 0){
+		__ttf_error = "invalid head table version";
+		goto error;
+	}
+	//ignore font version and checsum adjustement
+	read_u32(file);
+	read_u32(file);
+	//check magic number
+	if(read_u32(file) != 0x5F0F3CF5){
+		__ttf_error = "invalid magic number in head table";
+		goto error;
+	}
+	uint16_t flags = read_u16(file);
+	uint16_t unit_per_em = read_u16(file);
+	//ignore date
+	read_u32(file);
+	read_u32(file);
+	read_u32(file);
+	read_u32(file);
+
+	int16_t x_min = read_i16(file);
+	int16_t y_min = read_i16(file);
+	int16_t x_max = read_i16(file);
+	int16_t y_max = read_i16(file);
+	uint16_t mac_style = read_u16(file);
+	uint16_t lowet_rec = read_u16(file);
 
 	return font;
 error:

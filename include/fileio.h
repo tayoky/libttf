@@ -9,4 +9,6 @@ uint16_t read_u16(FILE*);
 uint32_t read_u32(FILE*);
 void seek(FILE *file,uint32_t offset);
 
+#define read_i16 (int16_t)read_u16
+
 #endif
