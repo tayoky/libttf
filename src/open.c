@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "fileio.h"
 #include "ttf.h"
 
@@ -34,6 +35,7 @@ uint32_t calc_checksum(ttf_file *file,ttf_table *table){
 ttf_file *ttf_open(const char *path){
 	FILE *file = fopen(path,"r");
 	if(!file){
+		__ttf_error = "no such file";
 		return NULL;
 	}
 
@@ -49,25 +51,34 @@ ttf_file *ttf_open(const char *path){
 	printf("number of table %d\n",num_table);
 
 	for(int i=0; i<num_table; i++){
-		ttf_table *table = malloc(sizeof(ttf_table));
+		ttf_table table;
+		memset(&table,0,sizeof(table));
 		seek(file,12 + i * 16);
-		table->tag = read_u32(file);
-		table->checksum = read_u32(file);
-		table->offset = read_u32(file);
-		table->lenght = read_u32(file);
-		printf("table %x at %x size %d\n",table->tag,table->offset,table->lenght);
-		if(calc_checksum(font,table) != table->checksum){
-			printf("invalid checksum\n");
+		table.tag = read_u32(file);
+		table.checksum = read_u32(file);
+		table.offset = read_u32(file);
+		table.lenght = read_u32(file);
+		printf("table %x at %x size %d\n",table.tag,table.offset,table.lenght);
+		if(calc_checksum(font,&table) != table.checksum){
+			__ttf_error = "invalid checksum";
+			goto error;
 		}
 
-		switch(table->tag){
-		default:
-			//unknow table
-			//we don't care we don't need that
-			free(table);
+		switch(table.tag){
+		case TAG("head"):
+			font->head = table;
 			break;
 		}
 	}
 
+	if(!font->head.offset){
+		__ttf_error = "no head table";
+		goto error;
+	}
+
 	return font;
+error:
+	fclose(file);
+	free(font);
+	return NULL;
 }

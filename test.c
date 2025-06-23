@@ -10,7 +10,7 @@ int main(int argc,char **argv){
 
 	ttf_file *font = ttf_open(argv[1]);
 	if(!font){
-		perror(argv[1]);
+		printf("libttf : %s\n",ttf_error());
 		return 1;
 	}
 
