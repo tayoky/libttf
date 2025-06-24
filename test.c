@@ -16,5 +16,7 @@ int main(int argc,char **argv){
 
 	printf("a and b are mapped to %d and %d\n",ttf_char2glyph(font,'a'),ttf_char2glyph(font,'b'));
 
+	ttf_close(font);
+
 	return 0;
 }
