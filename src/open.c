@@ -3,6 +3,7 @@
 #include <string.h>
 #include "fileio.h"
 #include "ttf.h"
+#include "internal_ttf.h"
 
 uint32_t calc_checksum(ttf_file *file,ttf_table *table){
 	seek(file->file,table->offset);
@@ -40,6 +41,7 @@ ttf_file *ttf_open(const char *path){
 	}
 
 	ttf_file *font = malloc(sizeof(ttf_file));
+	memset(font,0,sizeof(ttf_file));
 	font->file = file;
 
 	uint32_t sfnt_version = read_u32(file);
@@ -88,7 +90,7 @@ ttf_file *ttf_open(const char *path){
 
 	//now we can start to parse the tables
 	if(font->head.lenght < 46){
-		__ttf_error = "to small head table";
+		__ttf_error = "too small head table";
 		goto error;
 	}
 	seek(file,font->head.offset);
@@ -120,8 +122,13 @@ ttf_file *ttf_open(const char *path){
 	uint16_t mac_style = read_u16(file);
 	uint16_t lowet_rec = read_u16(file);
 
+	if(ttf_parse_cmap(font) < 0){
+		goto error;
+	}
+
 	return font;
 error:
+	if(font->char_mapping)free(font->char_mapping);
 	fclose(file);
 	free(font);
 	return NULL;
