@@ -1,0 +1,10 @@
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: libttf
+Description: A simple library to render ttf font
+URL: https://github.com/tayoky/libttf
+Version: ${version}
+Requires:
+Libs: -L${libdir} -lttf
+Cflags: -I${includedir}
