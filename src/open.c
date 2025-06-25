@@ -89,39 +89,9 @@ ttf_file *ttf_open(const char *path){
 	}
 
 	//now we can start to parse the tables
-	if(font->head.lenght < 46){
-		__ttf_error = "too small head table";
+	if(ttf_parse_head(font) < 0){
 		goto error;
 	}
-	seek(file,font->head.offset);
-	//major = 1, minor = 0
-	if(read_u16(file) != 1 || read_u16(file) != 0){
-		__ttf_error = "invalid head table version";
-		goto error;
-	}
-	//ignore font version and checsum adjustement
-	read_u32(file);
-	read_u32(file);
-	//check magic number
-	if(read_u32(file) != 0x5F0F3CF5){
-		__ttf_error = "invalid magic number in head table";
-		goto error;
-	}
-	uint16_t flags = read_u16(file);
-	uint16_t unit_per_em = read_u16(file);
-	//ignore date
-	read_u32(file);
-	read_u32(file);
-	read_u32(file);
-	read_u32(file);
-
-	int16_t x_min = read_i16(file);
-	int16_t y_min = read_i16(file);
-	int16_t x_max = read_i16(file);
-	int16_t y_max = read_i16(file);
-	uint16_t mac_style = read_u16(file);
-	uint16_t lowet_rec = read_u16(file);
-
 	if(ttf_parse_cmap(font) < 0){
 		goto error;
 	}

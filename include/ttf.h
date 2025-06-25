@@ -18,9 +18,12 @@ typedef struct ttf_char_mapping_struct {
 
 typedef struct ttf_file_struct {
 	FILE *file;
+	size_t file_size;
 	ttf_table head;
 	ttf_table cmap;
 	ttf_table glyf;
+	uint16_t unit_per_em;
+	uint16_t flags;
 	uint32_t char_mapping_count;
 	ttf_char_mapping *char_mapping;
 } ttf_file;
