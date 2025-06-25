@@ -38,9 +38,20 @@ int main(){
 
     ttf_close(font);
     return 0;
-}```
+}
+```
 
 and then compile with
 ```sh
 gcc test.c -lttf
 ```
+
+## functions
+- `ttf_file *ttf_open(const char *path)`
+- `void ttf_close(ttf_file *font)`
+- `const char *ttf_error()`
+- `uint32_t ttf_char2glyf(ttf_file *font,wchar_t c)`
+- `ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c)`
+
+# support
+currently libttf support only font of type truetype outline with a unicode endoding of format 12
