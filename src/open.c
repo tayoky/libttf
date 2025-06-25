@@ -39,17 +39,31 @@ ttf_file *ttf_open(const char *path){
 		__ttf_error = "no such file";
 		return NULL;
 	}
+	fseek(file,0,SEEK_END);
 
 	ttf_file *font = malloc(sizeof(ttf_file));
 	memset(font,0,sizeof(ttf_file));
 	font->file = file;
+	font->file_size = ftell(file);
 
-	uint32_t sfnt_version = read_u32(file);
+	seek(file,0);
+
+	//sfntversion 0x10000 = classic font "OTTO" = font collection
+	switch(read_u32(file)){
+	case 0x10000:
+		break;
+	case TAG("OTTO"):
+		__ttf_error = "font collection are unsupported";
+		goto error;
+	default:
+		__ttf_error = "not a valid ttf font";
+		goto error;
+	}
+
 	uint16_t num_table = read_u16(file);
 	read_u16(file);
 	read_u16(file);
 	read_u16(file);
-	printf("%x\n",sfnt_version);
 	printf("number of table %d\n",num_table);
 
 	for(int i=0; i<num_table; i++){
@@ -61,6 +75,12 @@ ttf_file *ttf_open(const char *path){
 		table.offset = read_u32(file);
 		table.lenght = read_u32(file);
 		printf("table %x at %x size %d\n",table.tag,table.offset,table.lenght);
+
+		if(table.offset + table.lenght > font->file_size){
+			__ttf_error = "table too big or out of bound";
+			goto error;
+		}
+
 		if(calc_checksum(font,&table) != table.checksum){
 			__ttf_error = "invalid checksum";
 			goto error;
