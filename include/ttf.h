@@ -22,18 +22,33 @@ typedef struct ttf_file_struct {
 	ttf_table head;
 	ttf_table cmap;
 	ttf_table glyf;
+	ttf_table loca;
+	ttf_table maxp;
 	uint16_t unit_per_em;
-	uint16_t flags;
+	uint16_t reserved;
+	uint32_t flags;
 	uint32_t char_mapping_count;
 	ttf_char_mapping *char_mapping;
 } ttf_file;
+
+typedef struct ttf_glyph_struct {
+	int16_t num_contours;
+	int16_t x_min;
+	int16_t y_min;
+	int16_t x_max;
+	int16_t y_max;
+} ttf_glyph;
+
+
+#define TTF_FLAG_LONG_OFF (1 << 16)
 
 extern const char *__ttf_error;
 
 ttf_file *ttf_open(const char *path);
 void ttf_close(ttf_file *file);
 const char *ttf_error(void);
-uint32_t ttf_char2glyph(ttf_file *font,uint32_t c);
+uint32_t ttf_char2glyph(ttf_file *font,wchar_t c);
+ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c);
 
 #define TAG(str) (str[0] << 24 | str[1] << 16 | str[2] << 8 | str[3])
 #endif

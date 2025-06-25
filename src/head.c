@@ -42,8 +42,20 @@ int ttf_parse_head(ttf_file *font){
 	int16_t y_min = read_i16(font->file);
 	int16_t x_max = read_i16(font->file);
 	int16_t y_max = read_i16(font->file);
-	uint16_t mac_style = read_u16(font->file);
-	uint16_t lowet_rec = read_u16(font->file);
+	read_u16(font->file); //mac style
+	read_u16(font->file); //lowest readable resolution
+	read_u16(font->file); //font direction hint
+	//index to loc format
+	switch(read_u16(font->file)){
+	case 0:
+		break;
+	case 1:
+		font->flags |= TTF_FLAG_LONG_OFF;
+		break;
+	default:
+		__ttf_error = "invalid indexToLocFormat in head table";
+		return -1;
+	}
 
 	return 0;
 }

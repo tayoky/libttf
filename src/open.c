@@ -96,6 +96,12 @@ ttf_file *ttf_open(const char *path){
 		case TAG("glyf"):
 			font->glyf = table;
 			break;
+		case TAG("loca"):
+			font->loca = table;
+			break;
+		case TAG("maxp"):
+			font->maxp = table;
+			break;
 		}
 	}
 
@@ -115,6 +121,17 @@ ttf_file *ttf_open(const char *path){
 	if(ttf_parse_cmap(font) < 0){
 		goto error;
 	}
+
+	//we only support ttf outline
+	if(!font->glyf.offset){
+		__ttf_error = "unsopported font type";
+		goto error;
+	}
+
+	if(ttf_parse_glyf(font) < 0){
+		goto error;
+	}
+
 
 	return font;
 error:

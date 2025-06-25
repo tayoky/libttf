@@ -5,5 +5,6 @@
 
 int ttf_parse_cmap(ttf_file *font);
 int ttf_parse_head(ttf_file *font);
+int ttf_parse_glyf(ttf_file *font);
 
 #endif
