@@ -52,6 +52,7 @@ gcc test.c -lttf
 - `const char *ttf_error()`
 - `uint32_t ttf_char2glyf(ttf_file *font,wchar_t c)`
 - `ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c)`
+- `void ttf_freeglyph(ttf_glyph *glyph)`
 
 # support
 currently libttf support only font of type truetype outline with a unicode endoding of format 12

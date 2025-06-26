@@ -31,12 +31,21 @@ typedef struct ttf_file_struct {
 	ttf_char_mapping *char_mapping;
 } ttf_file;
 
+typedef struct ttf_point_struct {
+	int32_t x;
+	int32_t y;
+	uint8_t flags;
+} ttf_point;
+
 typedef struct ttf_glyph_struct {
 	int16_t num_contours;
 	int16_t x_min;
 	int16_t y_min;
 	int16_t x_max;
 	int16_t y_max;
+	uint16_t *ends_pts; //last point of each contour
+	uint16_t num_pts;
+	ttf_point *pts;
 } ttf_glyph;
 
 
@@ -49,6 +58,7 @@ void ttf_close(ttf_file *file);
 const char *ttf_error(void);
 uint32_t ttf_char2glyph(ttf_file *font,wchar_t c);
 ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c);
+void ttf_freeglyph(ttf_glyph *glyph);
 
 #define TAG(str) (str[0] << 24 | str[1] << 16 | str[2] << 8 | str[3])
 #endif

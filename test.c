@@ -19,11 +19,16 @@ int main(int argc,char **argv){
 	printf("glyph a stat : \n");
 	ttf_glyph *a = ttf_getglyph(font,'a');
 	printf("number of contours : %d\n",a->num_contours);
+	printf("number of points : %u\n",a->num_pts);
 	printf("xmin : %d\n",a->x_min);
 	printf("ymin : %d\n",a->y_min);
 	printf("xmax : %d\n",a->x_max);
 	printf("ymax : %d\n",a->y_max);
-	free(a);
+	printf("points :\n");
+	for(int i = 0; i<a->num_pts; i++){
+		printf("x %d y %d\n",a->pts[i].x,a->pts[i].y);
+	}
+	ttf_freeglyph(a);
 
 	ttf_close(font);
 
