@@ -1,0 +1,102 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include "ttf.h"
+#include "internal_ttf.h"
+
+#define convert(funit) (((funit) * glyph->font->font_size + glyph->font->font_size - 1) / glyph->font->unit_per_em)
+#define pix(x,y) (((y) * bmp->width) + (x))
+
+static void line(ttf_bitmap *bmp,int ax, int ay, int bx, int by){
+	for(int i=0; i<101; i++){
+		int x = (ax * (100 - i) + bx * i) / 100;
+		int y = (ay * (100 - i) + by * i) / 100;
+		bmp->bitmap[pix(x,y)] = 255;
+	}
+}
+
+static int check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b){
+	if(b->y > a->y){
+		ttf_point *c = b;
+		b = a;
+		a = c;
+	}
+ 
+	int ax = convert(a->x - glyph->x_min);
+	int ay = convert(a->y - glyph->y_min);
+	int bx = convert(b->x - glyph->x_min);
+	int by = convert(b->y - glyph->y_min);
+	//we need one below and on top
+	if(by > y){
+		return -1;
+	}
+	if(ay < y){
+		return -1;
+	}
+
+	//there is an intersection but where ?
+	return (ax - bx) * (y - by) /(ay - by);
+}
+
+static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
+	int count = 0;
+	int first = 0;
+	for(int i=0; i<glyph->num_contours; i++){
+		int last = glyph->ends_pts[i];
+		for(int j=first; j<last; j++){
+			int x = check_line(glyph,y,&glyph->pts[j],&glyph->pts[j+1]);
+			if(x != -1){
+				intersections[count] = x;
+				count++;
+			}
+		}
+		int x = check_line(glyph,y,&glyph->pts[last],&glyph->pts[first]);
+		if(x != -1){
+			intersections[count] = x;
+			count++;
+		}
+
+		first = last;
+	}
+	return count;
+}
+
+ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
+	ttf_file *font = glyph->font;
+	int width = convert(glyph->x_max - glyph->x_min) + 1;
+	int height = convert(glyph->y_max - glyph->y_min) + 1;
+
+	ttf_bitmap *bmp = malloc(sizeof(ttf_bitmap));
+	bmp->width = width;
+	bmp->height = height;
+	printf("%dx%d\n",width,height);
+	bmp->bitmap = malloc(width * height);
+	memset(bmp->bitmap,0,width * height);
+
+	printf("pts : %d\n",glyph->num_pts);
+	for(int i=0; i<glyph->num_pts; i++){
+		int x = convert(glyph->pts[i].x-glyph->x_min);
+		int y = convert(glyph->pts[i].y-glyph->y_min);
+		printf("pts %d %d\n",x,y);
+		printf("%d\n",(pix(x,y)-x)/bmp->width);
+		bmp->bitmap[pix(x,y)] = 255;
+	}
+
+
+	/*for(int y = 0; y<height; y++){
+		int intersections[16];
+		int count = check_intersections(glyph,y,intersections);
+		while(count > 2){
+			for(int x=intersections[count-2]; x<intersections[count-1]; x++){
+				bmp->bitmap[pix(x,y)] = 255;
+			}
+			count -= 2;
+		}
+	}*/
+	return bmp;
+}
+
+void ttf_set_font_size(ttf_file *font,int size){
+	font->font_size = size;
+}

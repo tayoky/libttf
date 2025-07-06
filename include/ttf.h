@@ -29,6 +29,7 @@ typedef struct ttf_file_struct {
 	uint32_t flags;
 	uint32_t char_mapping_count;
 	ttf_char_mapping *char_mapping;
+	int font_size;
 } ttf_file;
 
 typedef struct ttf_point_struct {
@@ -38,6 +39,7 @@ typedef struct ttf_point_struct {
 } ttf_point;
 
 typedef struct ttf_glyph_struct {
+	ttf_file *font;
 	int16_t num_contours;
 	int16_t x_min;
 	int16_t y_min;
@@ -47,6 +49,12 @@ typedef struct ttf_glyph_struct {
 	uint16_t num_pts;
 	ttf_point *pts;
 } ttf_glyph;
+
+typedef struct ttf_bitmap_struct {
+	int width;
+	int height;
+	uint8_t *bitmap;
+} ttf_bitmap;
 
 
 #define TTF_FLAG_LONG_OFF (1 << 16)
@@ -59,6 +67,8 @@ const char *ttf_error(void);
 uint32_t ttf_char2glyph(ttf_file *font,wchar_t c);
 ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c);
 void ttf_freeglyph(ttf_glyph *glyph);
+void ttf_set_font_size(ttf_file *font,int size);
+ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph);
 
 #define TAG(str) (str[0] << 24 | str[1] << 16 | str[2] << 8 | str[3])
 #endif

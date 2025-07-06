@@ -58,6 +58,7 @@ ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
 	glyph_seek(font,glyph_id);
 
 	ttf_glyph *glyph = malloc(sizeof(ttf_glyph));
+	glyph->font = font;
 	glyph->num_contours = read_i16(font->file);
 	if(glyph->num_contours < 0){
 		glyph->num_contours = -1;
@@ -125,7 +126,7 @@ ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
 		int32_t y;
 		if(flags & Y_SHORT_VECTOR){
 			y = read_u8(font->file);
-			if(!(flags & X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR)){
+			if(!(flags & Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR)){
 				y = -y;
 			}
 
