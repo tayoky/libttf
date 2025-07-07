@@ -58,7 +58,8 @@ int ttf_parse_cmap(ttf_file *font){
 	printf("subtable format = %u\n",format);
 
 	switch(format){
-	case 12:;
+	case 12:
+	case 13:;
 		uint32_t num_group = read_u32(font->file);
 		if(lenght < 16 + 12 * num_group){
 			__ttf_error = "too small subtable in cmap table";
@@ -70,6 +71,7 @@ int ttf_parse_cmap(ttf_file *font){
 			font->char_mapping[i].start_char = read_u32(font->file);
 			font->char_mapping[i].end_char = read_u32(font->file);
 			font->char_mapping[i].start_glyph = read_u32(font->file);
+			font->char_mapping[i].type = format == 12 ? TTF_CMAP_INC : TTF_CMAP_SAME;
 		}
 		break;
 	default:
@@ -81,8 +83,17 @@ int ttf_parse_cmap(ttf_file *font){
 
 uint32_t ttf_char2glyph(ttf_file *font,uint32_t c){
 	for(uint32_t i=0; i<font->char_mapping_count; i++){
-		if(c >= font->char_mapping[i].start_char && c <= font->char_mapping[i].end_char){
-			return c - font->char_mapping[i].start_char + font->char_mapping[i].start_glyph;
+		switch(font->char_mapping[i].type){
+		case TTF_CMAP_INC:
+			if(c >= font->char_mapping[i].start_char && c <= font->char_mapping[i].end_char){
+				return c - font->char_mapping[i].start_char + font->char_mapping[i].start_glyph;
+			}
+			break;
+		case TTF_CMAP_SAME:
+			if(c >= font->char_mapping[i].start_char && c <= font->char_mapping[i].end_char){
+				return font->char_mapping[i].start_glyph;
+			}
+			break;
 		}
 	}
 	__ttf_error = "no glyph mapped to this char";
