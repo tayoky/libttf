@@ -16,10 +16,12 @@ typedef struct ttf_char_mapping_struct {
 	uint32_t end_char;
 	uint32_t start_glyph;
 	int type;
+	uint32_t flags;
 } ttf_char_mapping;
 
-#define TTF_CMAP_SAME 1
-#define TTF_CMAP_INC  2
+#define TTF_CMAP_SAME  1
+#define TTF_CMAP_INC   2
+#define TTF_CMAP_MOD16 0x01
 
 typedef struct ttf_file_struct {
 	FILE *file;

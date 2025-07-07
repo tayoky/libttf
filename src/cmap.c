@@ -8,7 +8,22 @@ struct record {
 	uint16_t plateform;
 	uint16_t encoding;
 	uint32_t offset;
+	uint16_t format;
 };
+
+//if a format good ? and how much
+static int good(uint16_t format){
+	switch(format){
+	case 12:
+		return 13;
+	case 13:
+		return 12;
+	case 4:
+		return 4;
+	default:
+		return -1;
+	}
+}
 
 int ttf_parse_cmap(ttf_file *font){
 	if(font->cmap.lenght < 4){
@@ -33,18 +48,31 @@ int ttf_parse_cmap(ttf_file *font){
 	struct record best_record = {.offset = 0};
 	for(int i=0; i<num_record; i++){
 		struct record record;
+		seek(font->file,font->cmap.offset + 4 + i * 8);
 		record.plateform = read_u16(font->file);
 		record.encoding = read_u16(font->file);
 		record.offset = read_u32(font->file);
+		seek(font->file,font->cmap.offset + record.offset);
+		record.format = read_u16(font->file);
 
-		//we want plateform = unicode (0)
-		//we also want encoding > 3 (3 and below are deprecated or only for bmp
-		if(record.plateform != 0 || record.encoding <= 3)continue;
+
+		//if we don't support skip
+		if(good(record.format) == -1){
+			printf("found unsupported chat mapping format %u\n",record.format);
+			continue;
+		}
+
+		if(best_record.offset){
+			//is this better than what we already have
+			if(good(record.format) < good(best_record.format)){
+				continue;
+			}
+		}
 		best_record = record;
 	}
 
 	if(!best_record.offset){
-		__ttf_error = "no unicode record in cmap table";
+		__ttf_error = "unsupported records in cmap table";
 		return -1;
 	}
 
@@ -54,8 +82,6 @@ int ttf_parse_cmap(ttf_file *font){
 	uint32_t lenght = read_u32(font->file);
 	//we ignore the langage
 	read_u32(font->file);
-
-	printf("subtable format = %u\n",format);
 
 	switch(format){
 	case 12:
@@ -74,9 +100,32 @@ int ttf_parse_cmap(ttf_file *font){
 			font->char_mapping[i].type = format == 12 ? TTF_CMAP_INC : TTF_CMAP_SAME;
 		}
 		break;
-	default:
-		__ttf_error = "unknow subtable format in cmap table";
-		return -1;
+	case 4:;
+		uint16_t seg_count = read_u16(font->file) / 2;
+		read_u16(font->file);
+		read_u16(font->file);
+		read_u16(font->file);
+		font->char_mapping_count = seg_count;
+		font->char_mapping = calloc(sizeof(ttf_char_mapping),seg_count);
+		for(int i=0; i<seg_count; i++){
+			font->char_mapping[i].type = TTF_CMAP_INC;
+			font->char_mapping[i].flags = TTF_CMAP_MOD16;
+			font->char_mapping[i].end_char = read_u16(font->file);
+		}
+		read_u16(font->file);
+		for(int i=0; i<seg_count; i++){
+			font->char_mapping[i].start_char = read_u16(font->file);
+		}
+		for(int i=0; i<seg_count; i++){
+			font->char_mapping[i].start_glyph = font->char_mapping[i].start_char + read_i16(font->file);
+		}
+		return 0;
+		if(read_u16(font->file) != 0){
+			__ttf_error = "unsupported subtable of format 4 in cmap table";
+			return -1;
+		}
+
+		break;
 	}
 	return 0;
 }
@@ -86,7 +135,8 @@ uint32_t ttf_char2glyph(ttf_file *font,uint32_t c){
 		switch(font->char_mapping[i].type){
 		case TTF_CMAP_INC:
 			if(c >= font->char_mapping[i].start_char && c <= font->char_mapping[i].end_char){
-				return c - font->char_mapping[i].start_char + font->char_mapping[i].start_glyph;
+				uint32_t id = c - font->char_mapping[i].start_char + font->char_mapping[i].start_glyph;
+				return font->char_mapping[i].flags & TTF_CMAP_MOD16 ? id % 65536 : id;
 			}
 			break;
 		case TTF_CMAP_SAME:
