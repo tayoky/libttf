@@ -48,9 +48,10 @@ ttf_file *ttf_open(const char *path){
 
 	seek(file,0);
 
-	//sfntversion 0x10000 = classic font "OTTO" = font collection
+	//sfntversion 0x10000 or "true" = classic font "OTTO" = font collection
 	switch(read_u32(file)){
 	case 0x10000:
+	case TAG("true"):
 		break;
 	case TAG("OTTO"):
 		__ttf_error = "font collection are unsupported";

@@ -38,10 +38,10 @@ int ttf_parse_head(ttf_file *font){
 	read_u32(font->file);
 	read_u32(font->file);
 
-	int16_t x_min = read_i16(font->file);
-	int16_t y_min = read_i16(font->file);
-	int16_t x_max = read_i16(font->file);
-	int16_t y_max = read_i16(font->file);
+	read_i16(font->file);
+	read_i16(font->file);
+	read_i16(font->file);
+	read_i16(font->file);
 	read_u16(font->file); //mac style
 	read_u16(font->file); //lowest readable resolution
 	read_u16(font->file); //font direction hint
