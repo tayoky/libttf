@@ -65,8 +65,8 @@ void bmp_save(FILE *file,uint8_t *bitmap,size_t width,size_t height){
 }
 
 int main(int argc,char **argv){
-	if(argc != 2){
-		printf("usage : test FONT\n");
+	if(argc != 3){
+		printf("usage : test FONT CHAT\n");
 		return 1;
 	}
 
@@ -79,7 +79,7 @@ int main(int argc,char **argv){
 	printf("a and b are mapped to %d and %d\n",ttf_char2glyph(font,'a'),ttf_char2glyph(font,'b'));
 
 	printf("glyph a stat : \n");
-	ttf_glyph *a = ttf_getglyph(font,'A');
+	ttf_glyph *a = ttf_getglyph(font,argv[2][0]);
 	printf("number of contours : %d\n",a->num_contours);
 	printf("number of points : %u\n",a->num_pts);
 	printf("xmin : %d\n",a->x_min);
@@ -95,7 +95,7 @@ int main(int argc,char **argv){
 	char path[256];
 	sprintf(path,"%s/storage/downloads/out.bmp",getenv("HOME"));
 	FILE *out = fopen(path,"w");
-	ttf_set_font_size(font,256);
+	ttf_set_font_size(font,64);
 	ttf_bitmap *bmp = ttf_render_glyph(a);
 	
 	bmp_save(out,bmp->bitmap,bmp->width,bmp->height);

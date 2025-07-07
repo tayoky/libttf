@@ -16,7 +16,7 @@ static void line(ttf_bitmap *bmp,int ax, int ay, int bx, int by){
 	}
 }
 
-static int check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b){
+static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *intersections,int *count){
 	if(b->y > a->y){
 		ttf_point *c = b;
 		b = a;
@@ -28,16 +28,23 @@ static int check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b){
 	int bx = convert(b->x - glyph->x_min);
 	int by = convert(b->y - glyph->y_min);
 	//we need one below and on top
-	if(by > y){
-		return -1;
+	if(by + 1 > y){
+		return;
 	}
 	if(ay < y){
-		return -1;
+		return;
 	}
 
 	//there is an intersection but where ?
-	if(ay == by)return -1;
-	return bx + (ax - bx) * (y - by) /(ay - by);
+	if(ay == by){
+		intersections[*count] = ax;
+		intersections[(*count)+1] = bx;
+		*count += 2;
+		return;
+	}
+
+	intersections[*count] = bx + (ax - bx) * (y - by) /(ay - by);
+	*count += 1;
 }
 
 static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
@@ -46,17 +53,9 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 	for(int i=0; i<glyph->num_contours; i++){
 		int last = glyph->ends_pts[i];
 		for(int j=first; j<last; j++){
-			int x = check_line(glyph,y,&glyph->pts[j],&glyph->pts[j+1]);
-			if(x != -1){
-				intersections[count] = x;
-				count++;
-			}
+			check_line(glyph,y,&glyph->pts[j],&glyph->pts[j+1],intersections,&count);
 		}
-		int x = check_line(glyph,y,&glyph->pts[last],&glyph->pts[first]);
-		if(x != -1){
-			intersections[count] = x;
-			count++;
-		}
+		check_line(glyph,y,&glyph->pts[last],&glyph->pts[first],intersections,&count);
 
 		first = last + 1;
 	}
@@ -82,13 +81,13 @@ ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
 	memset(bmp->bitmap,0,width * height);
 
 	printf("pts : %d\n",glyph->num_pts);
-	for(int i=0; i<glyph->num_pts; i++){
+	/*for(int i=0; i<glyph->num_pts; i++){
 		int x = convert(glyph->pts[i].x-glyph->x_min);
 		int y = convert(glyph->pts[i].y-glyph->y_min);
 		printf("pts %d %d\n",x,y);
 		printf("%d\n",(pix(x,y)-x)/bmp->width);
 		bmp->bitmap[pix(x,y)] = 255;
-	}
+	}*/
 
 
 	for(int y = 0; y<height; y++){
