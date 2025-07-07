@@ -36,7 +36,8 @@ static int check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b){
 	}
 
 	//there is an intersection but where ?
-	return (ax - bx) * (y - by) /(ay - by);
+	if(ay == by)return -1;
+	return bx + (ax - bx) * (y - by) /(ay - by);
 }
 
 static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
@@ -57,13 +58,19 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 			count++;
 		}
 
-		first = last;
+		first = last + 1;
 	}
 	return count;
 }
 
+
+static int compare_int(const void *e1,const void *e2){
+	const int *i1 = e1;
+	const int *i2 = e2;
+	return *i1 - * i2;
+}
+
 ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
-	ttf_file *font = glyph->font;
 	int width = convert(glyph->x_max - glyph->x_min) + 1;
 	int height = convert(glyph->y_max - glyph->y_min) + 1;
 
@@ -84,16 +91,18 @@ ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
 	}
 
 
-	/*for(int y = 0; y<height; y++){
+	for(int y = 0; y<height; y++){
 		int intersections[16];
 		int count = check_intersections(glyph,y,intersections);
-		while(count > 2){
+		//sorting time
+		qsort(intersections,count,sizeof(*intersections),compare_int);
+		while(count >= 2){
 			for(int x=intersections[count-2]; x<intersections[count-1]; x++){
 				bmp->bitmap[pix(x,y)] = 255;
 			}
 			count -= 2;
 		}
-	}*/
+	}
 	return bmp;
 }
 

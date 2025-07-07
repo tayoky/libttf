@@ -79,7 +79,7 @@ int main(int argc,char **argv){
 	printf("a and b are mapped to %d and %d\n",ttf_char2glyph(font,'a'),ttf_char2glyph(font,'b'));
 
 	printf("glyph a stat : \n");
-	ttf_glyph *a = ttf_getglyph(font,'T');
+	ttf_glyph *a = ttf_getglyph(font,'A');
 	printf("number of contours : %d\n",a->num_contours);
 	printf("number of points : %u\n",a->num_pts);
 	printf("xmin : %d\n",a->x_min);
