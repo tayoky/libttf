@@ -100,7 +100,7 @@ int main(int argc,char **argv){
 	
 	bmp_save(out,bmp->bitmap,bmp->width,bmp->height);
 	
-	ttf_freeglyph(a);
+	ttf_free_glyph(a);
 	ttf_close(font);
 
 	return 0;

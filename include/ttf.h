@@ -66,7 +66,7 @@ void ttf_close(ttf_file *file);
 const char *ttf_error(void);
 uint32_t ttf_char2glyph(ttf_file *font,wchar_t c);
 ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c);
-void ttf_freeglyph(ttf_glyph *glyph);
+void ttf_free_glyph(ttf_glyph *glyph);
 void ttf_set_font_size(ttf_file *font,int size);
 ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph);
 

@@ -148,7 +148,7 @@ ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
 	return glyph;
 }
 
-void ttf_freeglyph(ttf_glyph *glyph){
+void ttf_free_glyph(ttf_glyph *glyph){
 	free(glyph->ends_pts);
 	free(glyph->pts);
 	free(glyph);
