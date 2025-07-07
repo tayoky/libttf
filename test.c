@@ -95,7 +95,7 @@ int main(int argc,char **argv){
 	char path[256];
 	sprintf(path,"%s/storage/downloads/out.bmp",getenv("HOME"));
 	FILE *out = fopen(path,"w");
-	ttf_set_font_size(font,64);
+	ttf_set_font_size(font,32);
 	ttf_bitmap *bmp = ttf_render_glyph(a);
 	
 	bmp_save(out,bmp->bitmap,bmp->width,bmp->height);

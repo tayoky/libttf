@@ -23,9 +23,9 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 		a = c;
 	}
  
-	int ax = convert(a->x - glyph->x_min);
+	int ax = convert((a->x - glyph->x_min) * 256);
 	int ay = convert(a->y - glyph->y_min);
-	int bx = convert(b->x - glyph->x_min);
+	int bx = convert((b->x - glyph->x_min) * 256);
 	int by = convert(b->y - glyph->y_min);
 	//we need one below and on top
 	if(by + 1 > y){
@@ -96,8 +96,19 @@ ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
 		//sorting time
 		qsort(intersections,count,sizeof(*intersections),compare_int);
 		while(count >= 2){
-			for(int x=intersections[count-2]; x<intersections[count-1]; x++){
-				bmp->bitmap[pix(x,y)] = 255;
+			int x = intersections[count-2];
+			if(x % 256){
+				bmp->bitmap[pix(x/256,y)] = 256 - (x % 256);
+				x += 256 - (x % 256);
+			}
+
+			while(intersections[count-1] - x >= 256){
+				bmp->bitmap[pix(x/256,y)] = 255;
+				x+= 256;
+			}
+
+			if(x < intersections[count-1]){
+				bmp->bitmap[pix(x/256,y)] = intersections[count-1] - x;
 			}
 			count -= 2;
 		}
