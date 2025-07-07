@@ -2,6 +2,7 @@
 #define _TTF_H
 
 #include <stdio.h>
+#include <stdint.h>
 
 typedef struct ttf_table_struct {
 	uint32_t tag;
