@@ -78,8 +78,10 @@ int main(int argc,char **argv){
 
 	printf("a and b are mapped to %d and %d\n",ttf_char2glyph(font,'a'),ttf_char2glyph(font,'b'));
 
-	printf("glyph a stat : \n");
-	ttf_glyph *a = ttf_getglyph(font,argv[2][0]);
+	wchar_t c = 'a';
+	mbtowc(&c,argv[2],strlen(argv[2]));
+	printf("glyph %lc stat : \n",c);
+	ttf_glyph *a = ttf_getglyph(font,c);
 	printf("number of contours : %d\n",a->num_contours);
 	printf("number of points : %u\n",a->num_pts);
 	printf("xmin : %d\n",a->x_min);
@@ -95,7 +97,7 @@ int main(int argc,char **argv){
 	char path[256];
 	sprintf(path,"%s/storage/downloads/out.bmp",getenv("HOME"));
 	FILE *out = fopen(path,"w");
-	ttf_set_font_size(font,32);
+	ttf_set_font_size(font,16);
 	ttf_bitmap *bmp = ttf_render_glyph(a);
 	
 	bmp_save(out,bmp->bitmap,bmp->width,bmp->height);

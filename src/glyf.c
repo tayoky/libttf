@@ -53,11 +53,28 @@ int ttf_parse_glyf(ttf_file *font){
 #define X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR 0x10
 #define Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR 0x20
 
-ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
-	uint32_t glyph_id = ttf_char2glyph(font,c);
+
+#define ARG_1_AND_2_ARE_WORDS     0x0001
+#define ARGS_ARE_XY_VALUES        0x0002
+#define ROUND_XY_TO_GRID          0x0004
+#define WE_HAVE_A_SCALE           0x0008
+#define MORE_COMPONENTS           0x0020
+#define WE_HAVE_AN_X_AND_Y_SCALE  0x0040
+#define WE_HAVE_A_TWO_BY_TWO      0x0080
+#define WE_HAVE_INSTRUCTIONS      0x0100
+#define USE_MY_METRICS            0x0200
+#define OVERLAP_COMPOUND          0x0400
+#define SCALED_COMPONENT_OFFSET   0x0800
+#define UNSCALED_COMPONENT_OFFSET 0x1000
+
+//a value to convert a raw F2SOT14 read as int16_t into its true value
+#define F2DOT14 16384
+
+ttf_glyph *_ttf_getglyph(ttf_file *font,uint32_t glyph_id){
 	glyph_seek(font,glyph_id);
 
 	ttf_glyph *glyph = malloc(sizeof(ttf_glyph));
+	memset(glyph,0,sizeof(ttf_glyph));
 	glyph->font = font;
 	glyph->num_contours = read_i16(font->file);
 	if(glyph->num_contours < 0){
@@ -68,8 +85,108 @@ ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
 	glyph->x_max = read_i16(font->file);
 	glyph->y_max = read_i16(font->file);
 
-	//TODO : composite glyph support
-	if(glyph->num_contours == -1)return glyph;
+	//composite glyph support
+	if(glyph->num_contours == -1){
+		glyph->num_contours = 0;
+		for(;;){
+			uint16_t flags = read_u16(font->file);
+			uint16_t glyph_id = read_u16(font->file);
+			printf("contain %u\n",glyph_id);
+			off_t off = ftell(font->file);
+			ttf_glyph *child = _ttf_getglyph(font,glyph_id);
+			seek(font->file,off);
+
+			int16_t arg1,arg2;
+			if(flags & ARG_1_AND_2_ARE_WORDS){
+				arg1 = read_i16(font->file);
+				arg2 = read_i16(font->file);
+			} else {
+				if(flags & ARGS_ARE_XY_VALUES){
+					arg1 = read_i8(font->file);
+					arg2 = read_i8(font->file);
+				} else {
+					arg1 = read_u8(font->file);
+					arg2 = read_u8(font->file);
+				}
+			}
+
+
+			if(!(flags & ARGS_ARE_XY_VALUES)){
+				printf("aligning points\n");
+				flags &= ~SCALED_COMPONENT_OFFSET;
+				if(arg1 >= glyph->num_pts)arg1 = glyph->num_pts - 1;
+				if(arg2 >= child->num_pts)arg2 = child->num_pts - 1;
+				int16_t x = glyph->pts[arg1].x - child->pts[arg1].x;
+				int16_t y = glyph->pts[arg1].y - child->pts[arg1].y;
+				flags |= ARGS_ARE_XY_VALUES;
+				arg1 = (uint16_t)x;
+				arg2 = (uint16_t)y;
+			}
+
+			printf("offset : %d %d\n",arg1,arg2);
+
+
+			int16_t m1,m2,m3,m4;
+			if(flags & WE_HAVE_A_SCALE){
+				m1 = read_u16(font->file);
+			} else if(flags & WE_HAVE_AN_X_AND_Y_SCALE){
+				m1 = read_u16(font->file);
+				m2 = read_u16(font->file);
+			} else if(flags & WE_HAVE_A_TWO_BY_TWO){
+				m1 = read_u16(font->file);
+				m2 = read_u16(font->file);
+				m3 = read_u16(font->file);
+				m4 = read_u16(font->file);
+			}
+
+			//apply modifications to the childs's point
+			for(int i=0; i<child->num_pts; i++){
+				int32_t x = child->pts[i].x;
+				int32_t y = child->pts[i].y;
+
+				if((flags & SCALED_COMPONENT_OFFSET) && !(flags & UNSCALED_COMPONENT_OFFSET)){
+					x += arg1;
+
+					y += arg2;
+				}
+				if(flags & WE_HAVE_A_SCALE){
+					printf("scale\n");
+					x = x * m1 / F2DOT14;
+					y = y * m1 / F2DOT14;
+				} else if(flags & WE_HAVE_AN_X_AND_Y_SCALE){
+					x = x * m1 / F2DOT14;
+					y = y * m2 / F2DOT14;
+					printf("X and Y scale\n");
+				} else if(flags & WE_HAVE_A_TWO_BY_TWO){
+					x = x * m1 / F2DOT14 + y * m3 / F2DOT14;
+					y = x * m2 / F2DOT14 + y * m4 / F2DOT14;
+					printf("two by two scale\n");
+				}
+				if(!(flags & SCALED_COMPONENT_OFFSET) || (flags & UNSCALED_COMPONENT_OFFSET)){
+					x += arg1;
+					y += arg2;
+				}
+
+				child->pts[i].x = x;
+				child->pts[i].y = y;
+			}
+
+			glyph->pts = realloc(glyph->pts,(glyph->num_pts + child->num_pts) * sizeof(ttf_point));
+			memcpy(&glyph->pts[glyph->num_pts],child->pts,child->num_pts * sizeof(ttf_point));
+			glyph->num_pts += child->num_pts;
+			glyph->ends_pts = realloc(glyph->ends_pts,(glyph->num_contours + glyph->num_contours) * sizeof(uint16_t));
+			memcpy(&glyph->ends_pts[glyph->num_contours],child->ends_pts,child->num_contours * sizeof(uint16_t));
+			glyph->num_contours += child->num_contours;
+		
+
+			ttf_free_glyph(child);
+			if(!(flags & MORE_COMPONENTS)){
+				//no more ? quit
+				break;
+			}
+		}
+		return glyph;
+	}
 
 	glyph->ends_pts = calloc(sizeof(uint16_t),glyph->num_contours);
 	for(int i=0; i<glyph->num_contours; i++){
@@ -146,6 +263,10 @@ ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
 	
 
 	return glyph;
+}
+
+ttf_glyph *ttf_getglyph(ttf_file *font,wchar_t c){
+	return _ttf_getglyph(font,ttf_char2glyph(font,c));
 }
 
 void ttf_free_glyph(ttf_glyph *glyph){
