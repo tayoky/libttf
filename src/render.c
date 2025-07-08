@@ -5,7 +5,7 @@
 #include "ttf.h"
 #include "internal_ttf.h"
 
-#define convert(funit) (((funit) * glyph->font->font_size + glyph->font->font_size - 1) / glyph->font->unit_per_em)
+#define convert(funit) (((funit) * glyph->font->font_size + glyph->font->unit_per_em / 2) / glyph->font->unit_per_em)
 #define pix(x,y) (((y) * bmp->width) + (x))
 
 static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *intersections,int *count){
@@ -15,17 +15,15 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 		a = c;
 	}
  
-	int ax = (convert((a->x - glyph->x_min) * 256) + 255) / 256;
-	ax *= 256;
+	int ax = convert(a->x - glyph->x_min) * 256;
 	int ay = convert(a->y - glyph->y_min);
-	int bx = (convert((b->x - glyph->x_min) * 256) + 255 ) / 256;
-	bx *= 256;
+	int bx = convert(b->x - glyph->x_min) * 256;
 	int by = convert(b->y - glyph->y_min);
 	//we need one below and on top
 	if(by + 1 > y){
 		return;
 	}
-	if(ay < y){
+	if(ay  < y){
 		return;
 	}
 
@@ -64,8 +62,8 @@ static int compare_int(const void *e1,const void *e2){
 }
 
 ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
-	int width = convert(glyph->x_max - glyph->x_min) + 1;
-	int height = convert(glyph->y_max - glyph->y_min) + 1;
+	int width = convert(glyph->x_max + 1- glyph->x_min);
+	int height = convert(glyph->y_max + 1 - glyph->y_min);
 
 	ttf_bitmap *bmp = malloc(sizeof(ttf_bitmap));
 	bmp->width = width;
