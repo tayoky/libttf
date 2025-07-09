@@ -7,6 +7,7 @@
 
 #define convert(funit) (((funit) * glyph->font->font_size + glyph->font->unit_per_em / 2) / glyph->font->unit_per_em)
 #define pix(x,y) (((y) * bmp->width) + (x))
+#define ON_CURVE_POINT 0x01
 
 static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *intersections,int *count){
 	if(b->y > a->y){
@@ -38,16 +39,53 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 	intersections[*count] = bx + (ax - bx) * (y - by) /(ay - by);
 	*count += 1;
 }
+static ttf_point bezier(ttf_point **p,int t){
+	int p0 = (10-t)*(10-t)*(10-t);
+	int p1 = 3*(10-t)*(10-t)*t;
+	int p2 = 3*(10-t)*t*t;
+	int p3 = t*t*t;
+	return (ttf_point){.x = (p0*p[0]->x + p1*p[1]->x + p2*p[2]->x + p3*p[3]->x) / 1000,
+		.y = (p0*p[0]->y + p1*p[1]->y + p2*p[2]->y + p3*p[3]->y) / 1000,
+	};
+}
+
+static void check_curve(ttf_glyph *glyph,int y,ttf_point **p,int *intersections,int *count){
+	//uh idk what i am doing
+	//long A = -p[0].y + 3*p[1].y - 3*p[2].y + p[3].y;
+	//long B = 3*p[0].y - 6*p[1].y + 2*p[2].y;
+	//long C = -3*p[0].y + 3*p[1].y;
+	//long D = p[0].y - y;
+
+	//now At ^ 3 + Bt ^ 2 + Ct + D = 0
+	//we need to find t
+	for(int i=0; i<10; i++){
+		ttf_point a = bezier(p,i);
+		ttf_point b = bezier(p,i+1);
+		check_line(glyph,y,&a,&b,intersections,count);
+	}
+}
 
 static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 	int count = 0;
 	int first = 0;
 	for(int i=0; i<glyph->num_contours; i++){
 		int last = glyph->ends_pts[i];
-		for(int j=first; j<last; j++){
-			check_line(glyph,y,&glyph->pts[j],&glyph->pts[j+1],intersections,&count);
+		for(int j=first; j<=last; j++){
+			if(j < last && !(glyph->pts[j+1].flags & ON_CURVE_POINT)){
+				ttf_point *pts[4];
+				for(int i=0;i<4;i++){
+					pts[i] = &glyph->pts[first + ((j + i - first)%(last - first + 1))];
+				}	
+				check_curve(glyph,y,pts,intersections,&count);
+				j+=2;
+				continue;
+			}
+			if(j + 1 > last){
+				check_line(glyph,y,&glyph->pts[j],&glyph->pts[first],intersections,&count);
+			} else {
+				check_line(glyph,y,&glyph->pts[j],&glyph->pts[j+1],intersections,&count);
+			}
 		}
-		check_line(glyph,y,&glyph->pts[last],&glyph->pts[first],intersections,&count);
 
 		first = last + 1;
 	}
