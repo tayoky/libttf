@@ -46,10 +46,21 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 	intersections[*count] = bx + (ax - bx) * (y - by) /(ay - by);
 	*count += 1;
 }
+
+static inline long fact(long x){
+	long ret = 1;
+	for(long i=2; i<=x; i++){
+		ret *= i;
+	}
+	return ret;
+}
+static inline long C(long x,long y){
+	return fact(x) / (fact(y) * fact(x - y));
+}
 static ttf_point bezier(int res,ttf_point **p,size_t pts_num,int t){
 	ttf_point ret = {.x=0,.y=0};
 	for(size_t i=0; i<pts_num; i++){
-		long coef = i == 0 || i == pts_num-1 ? 1 : pts_num-1;
+		long coef = C(pts_num-1,i);
 		for(size_t j=0; j<pts_num-1; j++){
 			if(j < i){
 				coef *= t;
@@ -103,7 +114,7 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 				pts[i] = &glyph->pts[first + ((j + i - first)%(last - first + 1))];
 			}
 
-			printf("curve %zu points\n",pts_num);
+			//printf("curve %zu points\n",pts_num);
 			if(pts_num == 2){
 				check_line(glyph,y,pts[0],pts[1],intersections,&count,1);
 			} else {
