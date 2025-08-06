@@ -9,17 +9,24 @@
 #define pix(x,y) (((y) * bmp->width) + (x))
 #define ON_CURVE_POINT 0x01
 
-static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *intersections,int *count){
+static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *intersections,int *count,int snap){
 	if(b->y > a->y){
 		ttf_point *c = b;
 		b = a;
 		a = c;
 	}
  
-	int ax = convert(a->x - glyph->x_min) * 256;
 	int ay = convert(a->y - glyph->y_min);
-	int bx = convert(b->x - glyph->x_min) * 256;
 	int by = convert(b->y - glyph->y_min);
+	int ax,bx; 
+	if(snap){
+		ax = convert(a->x - glyph->x_min) * 256;
+		bx = convert(b->x - glyph->x_min) * 256;
+	} else {
+
+		ax = convert((a->x - glyph->x_min) * 256);
+		bx = convert((b->x - glyph->x_min) * 256);
+	}
 	//we need one below and on top
 	if(by + 1 > y){
 		return;
@@ -39,17 +46,28 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 	intersections[*count] = bx + (ax - bx) * (y - by) /(ay - by);
 	*count += 1;
 }
-static ttf_point bezier(ttf_point **p,int t){
-	int p0 = (10-t)*(10-t)*(10-t);
-	int p1 = 3*(10-t)*(10-t)*t;
-	int p2 = 3*(10-t)*t*t;
-	int p3 = t*t*t;
-	return (ttf_point){.x = (p0*p[0]->x + p1*p[1]->x + p2*p[2]->x + p3*p[3]->x) / 1000,
-		.y = (p0*p[0]->y + p1*p[1]->y + p2*p[2]->y + p3*p[3]->y) / 1000,
-	};
+static ttf_point bezier(int res,ttf_point **p,size_t pts_num,int t){
+	ttf_point ret = {.x=0,.y=0};
+	for(size_t i=0; i<pts_num; i++){
+		long coef = i == 0 || i == pts_num-1 ? 1 : pts_num-1;
+		for(size_t j=0; j<pts_num-1; j++){
+			if(j < i){
+				coef *= t;
+			} else {
+				coef *= res - t;
+			}
+		}
+		ret.x += p[i]->x * coef;
+		ret.y += p[i]->y * coef;
+	}
+	for(size_t i=0; i<pts_num-1; i++){
+		ret.x /= res;
+		ret.y /= res;
+	}
+	return ret;
 }
 
-static void check_curve(ttf_glyph *glyph,int y,ttf_point **p,int *intersections,int *count){
+static void check_curve(ttf_glyph *glyph,int y,ttf_point **p,size_t pts_num,int *intersections,int *count){
 	//uh idk what i am doing
 	//long A = -p[0].y + 3*p[1].y - 3*p[2].y + p[3].y;
 	//long B = 3*p[0].y - 6*p[1].y + 2*p[2].y;
@@ -58,10 +76,10 @@ static void check_curve(ttf_glyph *glyph,int y,ttf_point **p,int *intersections,
 
 	//now At ^ 3 + Bt ^ 2 + Ct + D = 0
 	//we need to find t
-	for(int i=0; i<10; i++){
-		ttf_point a = bezier(p,i);
-		ttf_point b = bezier(p,i+1);
-		check_line(glyph,y,&a,&b,intersections,count);
+	for(int i=0; i<glyph->font->curves_seg; i++){
+		ttf_point a = bezier(glyph->font->curves_seg,p,pts_num,i);
+		ttf_point b = bezier(glyph->font->curves_seg,p,pts_num,i+1);
+		check_line(glyph,y,&a,&b,intersections,count,0);
 	}
 }
 
@@ -70,21 +88,29 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 	int first = 0;
 	for(int i=0; i<glyph->num_contours; i++){
 		int last = glyph->ends_pts[i];
-		for(int j=first; j<=last; j++){
-			if(j < last && !(glyph->pts[j+1].flags & ON_CURVE_POINT)){
-				ttf_point *pts[4];
-				for(int i=0;i<4;i++){
-					pts[i] = &glyph->pts[first + ((j + i - first)%(last - first + 1))];
-				}	
-				check_curve(glyph,y,pts,intersections,&count);
-				j+=2;
-				continue;
+		int j=first;
+		while(j < last && !(glyph->pts[j].flags & ON_CURVE_POINT))j++;
+		for(; j<=last; j++){
+			//find the number of point on current curve
+			size_t pts_num = 1;
+			while(!(glyph->pts[first + ((j + pts_num - first)%(last - first + 1))].flags & ON_CURVE_POINT)){
+				pts_num++;
 			}
-			if(j + 1 > last){
-				check_line(glyph,y,&glyph->pts[j],&glyph->pts[first],intersections,&count);
+			pts_num++;
+
+			ttf_point *pts[pts_num];
+			for(size_t i=0;i<pts_num;i++){
+				pts[i] = &glyph->pts[first + ((j + i - first)%(last - first + 1))];
+			}
+
+			printf("curve %zu points\n",pts_num);
+			if(pts_num == 2){
+				check_line(glyph,y,pts[0],pts[1],intersections,&count,1);
 			} else {
-				check_line(glyph,y,&glyph->pts[j],&glyph->pts[j+1],intersections,&count);
+				check_curve(glyph,y,pts,pts_num,intersections,&count);
 			}
+
+			j+= pts_num  - 2;
 		}
 
 		first = last + 1;
@@ -139,4 +165,8 @@ ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
 
 void ttf_set_font_size(ttf_file *font,int size){
 	font->font_size = size;
+}
+
+void ttf_set_curves_seg(ttf_file *font,int count){
+	font->curves_seg = count;
 }

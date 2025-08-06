@@ -133,6 +133,7 @@ ttf_file *ttf_open(const char *path){
 		goto error;
 	}
 
+	font->curves_seg = 20;
 
 	return font;
 error:
