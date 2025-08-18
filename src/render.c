@@ -47,52 +47,26 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 	*count += 1;
 }
 
-static inline long fact(long x){
-	long ret = 1;
-	for(long i=2; i<=x; i++){
-		ret *= i;
-	}
-	return ret;
-}
-static inline long C(long x,long y){
-	return fact(x) / (fact(y) * fact(x - y));
-}
-static ttf_point bezier(int res,ttf_point **p,size_t pts_num,int t){
-	ttf_point ret = {.x=0,.y=0};
-	for(size_t i=0; i<pts_num; i++){
-		long coef = C(pts_num-1,i);
-		for(size_t j=0; j<pts_num-1; j++){
-			if(j < i){
-				coef *= t;
-			} else {
-				coef *= res - t;
-			}
-		}
-		ret.x += p[i]->x * coef;
-		ret.y += p[i]->y * coef;
-	}
-	for(size_t i=0; i<pts_num-1; i++){
-		ret.x /= res;
-		ret.y /= res;
-	}
-	return ret;
+static ttf_point bezier(int res,ttf_point p[3],int t){
+	int mt = res - t;
+		long p0 = mt*mt;
+		long p1 = 2*mt*t;
+		long p2 = t*t;
+		return (ttf_point){
+			.x = (p[0].x * p0 + p[1].x * p1 + p[2].x * p2) / (res * res),
+		.y = (p[0].y * p0 + p[1].y * p1 + p[2].y * p2) / (res * res),
+	};
 }
 
-static void check_curve(ttf_glyph *glyph,int y,ttf_point **p,size_t pts_num,int *intersections,int *count){
-	//uh idk what i am doing
-	//long A = -p[0].y + 3*p[1].y - 3*p[2].y + p[3].y;
-	//long B = 3*p[0].y - 6*p[1].y + 2*p[2].y;
-	//long C = -3*p[0].y + 3*p[1].y;
-	//long D = p[0].y - y;
-
-	//now At ^ 3 + Bt ^ 2 + Ct + D = 0
-	//we need to find t
+static void check_curve(ttf_glyph *glyph,int y,ttf_point p[3],int *intersections,int *count){
 	for(int i=0; i<glyph->font->curves_seg; i++){
-		ttf_point a = bezier(glyph->font->curves_seg,p,pts_num,i);
-		ttf_point b = bezier(glyph->font->curves_seg,p,pts_num,i+1);
+		ttf_point a = bezier(glyph->font->curves_seg,p,i);
+		ttf_point b = bezier(glyph->font->curves_seg,p,i+1);
 		check_line(glyph,y,&a,&b,intersections,count,0);
 	}
 }
+
+#define pt(index) glyph->pts[first + (((index) - first)%(last - first + 1))]
 
 static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 	int count = 0;
@@ -100,28 +74,46 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 	for(int i=0; i<glyph->num_contours; i++){
 		int last = glyph->ends_pts[i];
 		int j=first;
-		while(j < last && !(glyph->pts[j].flags & ON_CURVE_POINT))j++;
 		for(; j<=last; j++){
-			//find the number of point on current curve
-			size_t pts_num = 1;
-			while(!(glyph->pts[first + ((j + pts_num - first)%(last - first + 1))].flags & ON_CURVE_POINT)){
-				pts_num++;
-			}
-			pts_num++;
 
-			ttf_point *pts[pts_num];
-			for(size_t i=0;i<pts_num;i++){
-				pts[i] = &glyph->pts[first + ((j + i - first)%(last - first + 1))];
+			ttf_point pts[3];
+			for(size_t i=0; i<3; i++){
+				pts[i] = pt(i + j);
+			}
+			//we want the first to be on curve to get a quadric curve or a line
+			int block_1 = 0;
+			if(!(pts[0].flags & ON_CURVE_POINT)){
+				if(pts[1].flags & ON_CURVE_POINT){
+					//we handle this case at the end
+					continue;
+				}
+				//it isen't, make it
+				pts[0].flags |= ON_CURVE_POINT;
+				pts[0].x = (pts[0].x + pts[1].x) / 2;
+				pts[0].y = (pts[0].y + pts[1].y) / 2;
 			}
 
-			//printf("curve %zu points\n",pts_num);
-			if(pts_num == 2){
-				check_line(glyph,y,pts[0],pts[1],intersections,&count,1);
+			//now we are sure the first point is on curve
+			//but we also need tje the second or third to be on curve
+			//so we only have lines and quadric curves
+			if(!(pts[1].flags & ON_CURVE_POINT) && !(pts[2].flags & ON_CURVE_POINT)){
+				//we need to make the third point on curve
+				//take the mid of of second and third
+				pts[2].flags |= ON_CURVE_POINT;
+				pts[2].x = (pts[1].x + pts[2].x) / 2;
+				pts[2].y = (pts[1].y + pts[2].y) / 2;
+				block_1 = 1;
+
+			}
+			//we already know first point is on curve
+			if(pts[1].flags & ON_CURVE_POINT){
+				check_line(glyph,y,&pts[0],&pts[1],intersections,&count,1);
 			} else {
-				check_curve(glyph,y,pts,pts_num,intersections,&count);
+				//quadric curve
+				check_curve(glyph,y,pts,intersections,&count);
+				//since quadrix cube use 3 points skip one more
+				if(!block_1)j++;
 			}
-
-			j+= pts_num  - 2;
 		}
 
 		first = last + 1;
