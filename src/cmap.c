@@ -58,7 +58,9 @@ int ttf_parse_cmap(ttf_file *font){
 
 		//if we don't support skip
 		if(good(record.format) == -1){
-			printf("found unsupported chat mapping format %u\n",record.format);
+#ifdef DEBUG
+			printf("found unsupported char mapping format %u\n",record.format);
+#endif
 			continue;
 		}
 

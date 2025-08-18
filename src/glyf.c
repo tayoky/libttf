@@ -68,7 +68,7 @@ int ttf_parse_glyf(ttf_file *font){
 #define UNSCALED_COMPONENT_OFFSET 0x1000
 
 //a value to convert a raw F2SOT14 read as int16_t into its true value
-#define F2DOT14 16384
+#define F2DOT14 (1 << 14)
 
 ttf_glyph *_ttf_getglyph(ttf_file *font,uint32_t glyph_id){
 	glyph_seek(font,glyph_id);
@@ -101,6 +101,7 @@ ttf_glyph *_ttf_getglyph(ttf_file *font,uint32_t glyph_id){
 				arg1 = read_i16(font->file);
 				arg2 = read_i16(font->file);
 			} else {
+				puts("short args");
 				if(flags & ARGS_ARE_XY_VALUES){
 					arg1 = read_i8(font->file);
 					arg2 = read_i8(font->file);
@@ -126,17 +127,29 @@ ttf_glyph *_ttf_getglyph(ttf_file *font,uint32_t glyph_id){
 			printf("offset : %d %d\n",arg1,arg2);
 
 
-			int16_t m1,m2,m3,m4;
+			int16_t mat[2][2];
+			memset(mat,0,sizeof(mat));
 			if(flags & WE_HAVE_A_SCALE){
-				m1 = read_u16(font->file);
+				mat[0][0] = mat[1][1] = read_u16(font->file);
+#ifdef DEBUG
+				printf("scale\n");
+#endif
 			} else if(flags & WE_HAVE_AN_X_AND_Y_SCALE){
-				m1 = read_u16(font->file);
-				m2 = read_u16(font->file);
+				mat[0][0] = read_u16(font->file);
+				mat[1][1] = read_u16(font->file);
+#ifdef DEBUG
+				printf("X and Y scale\n");
+#endif
 			} else if(flags & WE_HAVE_A_TWO_BY_TWO){
-				m1 = read_u16(font->file);
-				m2 = read_u16(font->file);
-				m3 = read_u16(font->file);
-				m4 = read_u16(font->file);
+				mat[0][0] = read_u16(font->file);
+				mat[1][0] = read_u16(font->file);
+				mat[0][1] = read_u16(font->file);
+				mat[1][1] = read_u16(font->file);
+#ifdef DEBUG
+				printf("two by two scale\n");
+#endif
+			} else {
+				mat[0][0] = mat[1][1] = F2DOT14;
 			}
 
 			//apply modifications to the childs's point
@@ -149,19 +162,10 @@ ttf_glyph *_ttf_getglyph(ttf_file *font,uint32_t glyph_id){
 
 					y += arg2;
 				}
-				if(flags & WE_HAVE_A_SCALE){
-					printf("scale\n");
-					x = x * m1 / F2DOT14;
-					y = y * m1 / F2DOT14;
-				} else if(flags & WE_HAVE_AN_X_AND_Y_SCALE){
-					x = x * m1 / F2DOT14;
-					y = y * m2 / F2DOT14;
-					printf("X and Y scale\n");
-				} else if(flags & WE_HAVE_A_TWO_BY_TWO){
-					x = x * m1 / F2DOT14 + y * m3 / F2DOT14;
-					y = x * m2 / F2DOT14 + y * m4 / F2DOT14;
-					printf("two by two scale\n");
-				}
+
+				x = x * mat[0][0] / F2DOT14 + y * mat[0][1] / F2DOT14;
+				y = x * mat[1][0] / F2DOT14 + y * mat[1][1] / F2DOT14;
+
 				if(!(flags & SCALED_COMPONENT_OFFSET) || (flags & UNSCALED_COMPONENT_OFFSET)){
 					x += arg1;
 					y += arg2;
@@ -174,7 +178,7 @@ ttf_glyph *_ttf_getglyph(ttf_file *font,uint32_t glyph_id){
 			glyph->pts = realloc(glyph->pts,(glyph->num_pts + child->num_pts) * sizeof(ttf_point));
 			memcpy(&glyph->pts[glyph->num_pts],child->pts,child->num_pts * sizeof(ttf_point));
 			glyph->num_pts += child->num_pts;
-			glyph->ends_pts = realloc(glyph->ends_pts,(glyph->num_contours + glyph->num_contours) * sizeof(uint16_t));
+			glyph->ends_pts = realloc(glyph->ends_pts,(glyph->num_contours + child->num_contours) * sizeof(uint16_t));
 			memcpy(&glyph->ends_pts[glyph->num_contours],child->ends_pts,child->num_contours * sizeof(uint16_t));
 			glyph->num_contours += child->num_contours;
 		
