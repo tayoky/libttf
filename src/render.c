@@ -5,33 +5,27 @@
 #include "ttf.h"
 #include "internal_ttf.h"
 
-#define convert(funit) (((funit) * glyph->font->font_size + glyph->font->unit_per_em / 2) / glyph->font->unit_per_em)
+#define convert(funit) ((((long)(funit) * 256) * glyph->font->font_size + glyph->font->unit_per_em / 2) / glyph->font->unit_per_em)
 #define pix(x,y) (((y) * bmp->width) + (x))
 #define ON_CURVE_POINT 0x01
 
-static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *intersections,int *count,int snap){
+static void check_line(ttf_glyph *glyph,fixed_t y,ttf_point *a,ttf_point *b,fixed_t *intersections,int *count,int snap){
 	if(b->y > a->y){
 		ttf_point *c = b;
 		b = a;
 		a = c;
 	}
  
-	int ay = convert(a->y - glyph->y_min);
-	int by = convert(b->y - glyph->y_min);
-	int ax,bx; 
-	if(snap){
-		ax = convert(a->x - glyph->x_min) * 256;
-		bx = convert(b->x - glyph->x_min) * 256;
-	} else {
+	fixed_t ay = convert(a->y - glyph->y_min);
+	fixed_t by = convert(b->y - glyph->y_min);
+	fixed_t ax = convert(a->x - glyph->x_min);
+	fixed_t bx = convert(b->x - glyph->x_min);
 
-		ax = convert((a->x - glyph->x_min) * 256);
-		bx = convert((b->x - glyph->x_min) * 256);
-	}
 	//we need one below and on top
-	if(by + 1 > y){
+	if(by  > y){
 		return;
 	}
-	if(ay  < y){
+	if(ay - 1 < y){
 		return;
 	}
 
@@ -43,7 +37,8 @@ static void check_line(ttf_glyph *glyph,int y,ttf_point *a,ttf_point *b,int *int
 		return;
 	}
 
-	intersections[*count] = bx + (ax - bx) * (y - by) /(ay - by);
+
+	intersections[*count] = bx + fixed_div(fixed_mul((ax - bx), (y - by)), (ay - by));
 	*count += 1;
 }
 
@@ -58,7 +53,7 @@ static ttf_point bezier(int res,ttf_point p[3],int t){
 	};
 }
 
-static void check_curve(ttf_glyph *glyph,int y,ttf_point p[3],int *intersections,int *count){
+static void check_curve(ttf_glyph *glyph,fixed_t y,ttf_point p[3],fixed_t *intersections,int *count){
 	for(int i=0; i<glyph->font->curves_seg; i++){
 		ttf_point a = bezier(glyph->font->curves_seg,p,i);
 		ttf_point b = bezier(glyph->font->curves_seg,p,i+1);
@@ -68,7 +63,7 @@ static void check_curve(ttf_glyph *glyph,int y,ttf_point p[3],int *intersections
 
 #define pt(index) glyph->pts[first + (((index) - first)%(last - first + 1))]
 
-static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
+static int check_intersections(ttf_glyph *glyph,fixed_t y,fixed_t *intersections){
 	int count = 0;
 	int first = 0;
 	for(int i=0; i<glyph->num_contours; i++){
@@ -107,7 +102,7 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 			}
 			//we already know first point is on curve
 			if(pts[1].flags & ON_CURVE_POINT){
-				check_line(glyph,y,&pts[0],&pts[1],intersections,&count,1);
+				check_line(glyph,y,&pts[0],&pts[1],intersections,&count,0);
 			} else {
 				//quadric curve
 				check_curve(glyph,y,pts,intersections,&count);
@@ -123,14 +118,14 @@ static int check_intersections(ttf_glyph *glyph,int y,int *intersections){
 
 
 static int compare_int(const void *e1,const void *e2){
-	const int *i1 = e1;
-	const int *i2 = e2;
+	const fixed_t *i1 = e1;
+	const fixed_t *i2 = e2;
 	return *i1 - * i2;
 }
 
 ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
-	int width = convert(glyph->x_max + 1- glyph->x_min);
-	int height = convert(glyph->y_max + 1 - glyph->y_min);
+	int width = fixed2int(convert(glyph->x_max + 1- glyph->x_min));
+	int height = fixed2int(convert(glyph->y_max + 1 - glyph->y_min));
 
 	ttf_bitmap *bmp = malloc(sizeof(ttf_bitmap));
 	bmp->width = width;
@@ -139,28 +134,27 @@ ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
 	memset(bmp->bitmap,0,width * height);
 
 	for(int y = 0; y<height; y++){
-		int intersections[16];
-		int count = check_intersections(glyph,y,intersections);
-		//sorting time
+		fixed_t intersections[16];
+		int count = check_intersections(glyph,int2fixed(y)+128,intersections);
+		// sorting time
 		qsort(intersections,count,sizeof(*intersections),compare_int);
-		while(count >= 2){
-			int x = intersections[count-2];
-			if(x % 256){
-				uint8_t old = 
-				bmp->bitmap[pix(x/256,y)];
-				bmp->bitmap[pix(x/256,y)] = 255 - ((x % 256) * (255 - old) / 255);
-				x += 256 - (x % 256);
+		for (int i=0; i<count; i+=2){
+			fixed_t x = intersections[i];
+			fixed_t end_x = intersections[i+1];
+			printf("%d %d\n", fixed2int(x), fixed2int(end_x));
+			if(x % FIXED_SCALE){
+				bmp->bitmap[pix(x/256,y)] += 255 - (x % FIXED_SCALE);
+				x += FIXED_SCALE - (x % FIXED_SCALE);
 			}
 
-			while(intersections[count-1] - x >= 256){
+			while(end_x - x >= FIXED_SCALE){
 				bmp->bitmap[pix(x/256,y)] = 255;
-				x+= 256;
+				x+= FIXED_SCALE;
 			}
 
-			if(x < intersections[count-1]){
-				bmp->bitmap[pix(x/256,y)] = intersections[count-1] - x;
+			if(x < end_x){
+				bmp->bitmap[pix(x/256,y)] += end_x - x;
 			}
-			count -= 2;
 		}
 	}
 	return bmp;
