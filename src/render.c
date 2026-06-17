@@ -9,37 +9,115 @@
 #define pix(x,y) (((y) * bmp->width) + (x))
 #define ON_CURVE_POINT 0x01
 
-static void check_line(ttf_glyph *glyph,fixed_t y,ttf_point *a,ttf_point *b,fixed_t *intersections,int *count,int snap){
-	if(b->y > a->y){
-		ttf_point *c = b;
-		b = a;
-		a = c;
+// based on freetype's algo
+
+typedef struct cell {
+	struct cell *next;
+	int x;
+	fixed_t coverage;
+	fixed_t area;
+} cell_t;
+
+
+static cell_t *get_cell(cell_t **grid, int x, int y) {
+	//printf("cell %d %d\n", x, y);
+	for (cell_t *current = grid[y]; current; current = current->next) {
+		if (current->x == x) {
+			// cache hit
+			return current;
+		}
 	}
- 
-	fixed_t ay = convert(a->y - glyph->y_min);
-	fixed_t by = convert(b->y - glyph->y_min);
+	return NULL;
+}
+
+static cell_t *add_cell(cell_t **grid, int x, int y) {
+	cell_t *new_cell = get_cell(grid, x, y);
+	if (new_cell) return new_cell;
+	new_cell = malloc(sizeof(cell_t));
+	new_cell->x = x;
+	new_cell->next  = grid[y];
+	new_cell->coverage = 0; 
+	new_cell->area  = 0;
+	grid[y] = new_cell;
+	return new_cell;
+}
+
+static fixed_t calc_area(fixed_t ax, fixed_t ay, fixed_t bx, fixed_t by) {
+	fixed_t total_y = by + ay;
+	return fixed_mul(bx - ax, total_y) / 2;
+}
+
+static void set_cell(cell_t **grid, int cell_x, int cell_y, fixed_t ax, fixed_t ay, fixed_t bx, fixed_t by) {
+	cell_t *cell = add_cell(grid, cell_x, cell_y);
+	fixed_t fixed_cell_x = int2fixed(cell_x);
+	fixed_t fixed_cell_y = int2fixed(cell_y);
+	fixed_t local_ax = ax - fixed_cell_x;
+	fixed_t local_ay = ay - fixed_cell_y;
+	fixed_t local_bx = bx - fixed_cell_x;
+	fixed_t local_by = by - fixed_cell_y;
+	printf("in cell : %d %d %d %d\n", local_ax, local_ay, local_bx, local_by);
+	cell->coverage += local_by - local_ay;
+	cell->area += calc_area(local_ax, local_ay, local_bx, local_by);
+}
+
+static void check_line(ttf_glyph *glyph, cell_t **grid, ttf_point *a, ttf_point *b){
 	fixed_t ax = convert(a->x - glyph->x_min);
+	fixed_t ay = convert(a->y - glyph->y_min);
 	fixed_t bx = convert(b->x - glyph->x_min);
+	fixed_t by = convert(b->y - glyph->y_min);
+	fixed_t dx = bx - ax;
+	fixed_t dy = by - ay;
 
-	//we need one below and on top
-	if(by  > y){
-		return;
+	fixed_t dir_x = dx > 0 ? 1 : -1;
+	fixed_t dir_y = dy > 0 ? 1 : -1;
+
+	// loop until in target pixel
+	fixed_t x = ax;
+	fixed_t y = ay;
+	int cell_x = fixed2int(x);
+	int cell_y = fixed2int(y);
+	int target_x = fixed2int(bx);
+	int target_y = fixed2int(by);
+	// a bit of a special case
+	if (dx < 0 && fixed_decimal(x) == 0) cell_x--;
+	if (dy < 0 && fixed_decimal(y) == 0) cell_y--;
+	printf("line from %d %d to %d %d\n", cell_x, cell_y, target_x, target_y);
+	while (cell_x != target_x || cell_y != target_y) {
+		fixed_t floor_x = int2fixed(cell_x);
+		fixed_t floor_y = int2fixed(cell_y);
+		fixed_t next_grid_x = dx > 0 ? floor_x + FIXED_ONE : floor_x;
+		fixed_t next_grid_y = dy > 0 ? floor_y + FIXED_ONE : floor_y;
+
+		fixed_t tx = dx != 0 ? fixed_div(next_grid_x - x, dx) : FIXED_MAX;
+		fixed_t ty = dy != 0 ? fixed_div(next_grid_y - y, dy) : FIXED_MAX;
+		fixed_t next_x, next_y;
+		int next_cell_x = cell_x;
+		int next_cell_y = cell_y;
+		if (tx == ty) {
+			next_x = next_grid_x;
+			next_y = next_grid_y;
+			next_cell_x += dir_x;
+			next_cell_y += dir_y;
+		} else if (tx < ty) {
+			// vertical line hit
+			next_x = next_grid_x;
+			next_y = y + fixed_mul(tx, dy);
+			next_cell_x += dir_x;
+		} else {
+			// horizontal line hit
+			next_x = x + fixed_mul(ty, dx);
+			next_y = next_grid_y;
+			next_cell_y += dir_y;
+		}
+		printf("at %d %d next is %d %d\n", fixed2int(x), fixed2int(y), fixed2int(next_x), fixed2int(next_y));
+		set_cell(grid, cell_x, cell_y, x, y, next_x, next_y);
+		cell_x = next_cell_x;
+		cell_y = next_cell_y;
+		x = next_x;
+		y = next_y;
 	}
-	if(ay - 1 < y){
-		return;
-	}
-
-	//there is an intersection but where ?
-	if(ay == by){
-		intersections[*count] = ax;
-		intersections[(*count)+1] = bx;
-		*count += 2;
-		return;
-	}
-
-
-	intersections[*count] = bx + fixed_div(fixed_mul((ax - bx), (y - by)), (ay - by));
-	*count += 1;
+	set_cell(grid, cell_x, cell_y, x, y, bx, by);
+	return;
 }
 
 static ttf_point bezier(int res,ttf_point p[3],int t){
@@ -53,17 +131,17 @@ static ttf_point bezier(int res,ttf_point p[3],int t){
 	};
 }
 
-static void check_curve(ttf_glyph *glyph,fixed_t y,ttf_point p[3],fixed_t *intersections,int *count){
+static void check_curve(ttf_glyph *glyph, cell_t **grid, ttf_point p[3]) {
 	for(int i=0; i<glyph->font->curves_seg; i++){
 		ttf_point a = bezier(glyph->font->curves_seg,p,i);
 		ttf_point b = bezier(glyph->font->curves_seg,p,i+1);
-		check_line(glyph,y,&a,&b,intersections,count,0);
+		check_line(glyph, grid, &a, &b);
 	}
 }
 
 #define pt(index) glyph->pts[first + (((index) - first)%(last - first + 1))]
 
-static int check_intersections(ttf_glyph *glyph,fixed_t y,fixed_t *intersections){
+static int check_intersections(ttf_glyph *glyph, cell_t **grid) {
 	int count = 0;
 	int first = 0;
 	for(int i=0; i<glyph->num_contours; i++){
@@ -102,10 +180,10 @@ static int check_intersections(ttf_glyph *glyph,fixed_t y,fixed_t *intersections
 			}
 			//we already know first point is on curve
 			if(pts[1].flags & ON_CURVE_POINT){
-				check_line(glyph,y,&pts[0],&pts[1],intersections,&count,0);
+				check_line(glyph, grid, &pts[0], &pts[1]);
 			} else {
 				//quadric curve
-				check_curve(glyph,y,pts,intersections,&count);
+				check_curve(glyph, grid, pts);
 				//since quadrix cube use 3 points skip one more
 				if(!block_1)j++;
 			}
@@ -116,16 +194,9 @@ static int check_intersections(ttf_glyph *glyph,fixed_t y,fixed_t *intersections
 	return count;
 }
 
-
-static int compare_int(const void *e1,const void *e2){
-	const fixed_t *i1 = e1;
-	const fixed_t *i2 = e2;
-	return *i1 - * i2;
-}
-
 ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
-	int width = fixed2int(convert(glyph->x_max + 1- glyph->x_min));
-	int height = fixed2int(convert(glyph->y_max + 1 - glyph->y_min));
+	int width = fixed2int(fixed_ceil(convert(glyph->x_max - glyph->x_min))) + 1;
+	int height = fixed2int(fixed_ceil(convert(glyph->y_max - glyph->y_min))) + 1;
 
 	ttf_bitmap *bmp = malloc(sizeof(ttf_bitmap));
 	bmp->width = width;
@@ -133,30 +204,30 @@ ttf_bitmap *ttf_render_glyph(ttf_glyph *glyph){
 	bmp->bitmap = malloc(width * height);
 	memset(bmp->bitmap,0,width * height);
 
+	cell_t *grid[height];
+	memset(grid, 0, sizeof(grid));
+	check_intersections(glyph, grid);
+
 	for(int y = 0; y<height; y++){
-		fixed_t intersections[16];
-		int count = check_intersections(glyph,int2fixed(y)+128,intersections);
-		// sorting time
-		qsort(intersections,count,sizeof(*intersections),compare_int);
-		for (int i=0; i<count; i+=2){
-			fixed_t x = intersections[i];
-			fixed_t end_x = intersections[i+1];
-			printf("%d %d\n", fixed2int(x), fixed2int(end_x));
-			if(x % FIXED_SCALE){
-				bmp->bitmap[pix(x/256,y)] += 255 - (x % FIXED_SCALE);
-				x += FIXED_SCALE - (x % FIXED_SCALE);
+		fixed_t coverage = 0;
+		for (int x=0; x<width; x++) {
+			cell_t *cell = get_cell(grid, x, y);
+			fixed_t area = 0;
+			if (cell) {
+				coverage += cell->coverage;
+				area = cell->area;
 			}
-
-			while(end_x - x >= FIXED_SCALE){
-				bmp->bitmap[pix(x/256,y)] = 255;
-				x+= FIXED_SCALE;
-			}
-
-			if(x < end_x){
-				bmp->bitmap[pix(x/256,y)] += end_x - x;
+			fixed_t local_coverage = coverage - area;
+			if (local_coverage <= 0) {
+				bmp->bitmap[pix(x, y)] = 0;
+			} else if (local_coverage < FIXED_ONE) {
+				bmp->bitmap[pix(x, y)] = local_coverage;
+			} else {
+				bmp->bitmap[pix(x, y)] = 255;
 			}
 		}
 	}
+	// TODO : free grid
 	return bmp;
 }
 
