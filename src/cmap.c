@@ -132,17 +132,17 @@ int ttf_parse_cmap(ttf_file *font){
 	return 0;
 }
 
-uint32_t ttf_char2glyph(ttf_file *font,uint32_t c){
+uint32_t ttf_char2glyph(ttf_file *font,wchar_t c){
 	for(uint32_t i=0; i<font->char_mapping_count; i++){
 		switch(font->char_mapping[i].type){
 		case TTF_CMAP_INC:
-			if(c >= font->char_mapping[i].start_char && c <= font->char_mapping[i].end_char){
+			if(c >= (wchar_t)font->char_mapping[i].start_char && c <= (wchar_t)font->char_mapping[i].end_char){
 				uint32_t id = c - font->char_mapping[i].start_char + font->char_mapping[i].start_glyph;
 				return font->char_mapping[i].flags & TTF_CMAP_MOD16 ? id % 65536 : id;
 			}
 			break;
 		case TTF_CMAP_SAME:
-			if(c >= font->char_mapping[i].start_char && c <= font->char_mapping[i].end_char){
+			if(c >= (wchar_t)font->char_mapping[i].start_char && c <= (wchar_t)font->char_mapping[i].end_char){
 				return font->char_mapping[i].start_glyph;
 			}
 			break;
