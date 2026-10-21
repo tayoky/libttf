@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <wchar.h>
 
 typedef struct ttf_table_struct {
 	uint32_t tag;
