@@ -1,0 +1,22 @@
+TMAKE_DIR = $(TOP)/make
+include $(TMAKE_DIR)/tmake-init.mk
+
+PACKAGE = ttf
+VERSION = $(shell git describe --tags --always)
+
+INCS = $(wildcard $(SRCDIR)/include/ttf.h)
+SRCS = $(wildcard $(SRCDIR)/src/*.c)
+PCFILES = $(BUILDDIR)/libttf.pc
+PCFILESDIR ?= $(PREFIX)/lib/pkgconfig
+FILESGROUPS += PCFILES
+CFLAGS += -I$(SRCDIR)/include
+include $(TMAKE_DIR)/tmake-lib.mk
+
+SUBDIRS = demo
+include $(TMAKE_DIR)/tmake-subdir.mk
+
+# automatically generate libttf.pc
+$(BUILDDIR)/libttf.pc : $(SRCDIR)/libttf.pc.in
+	@echo 'prefix=$(PREFIX)' > $@
+	@echo 'version=$(VERSION)' >> $@
+	@cat $^ >> $@

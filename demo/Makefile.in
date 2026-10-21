@@ -1,0 +1,8 @@
+TMAKE_DIR ?= $(TOP)/make
+include $(TMAKE_DIR)/tmake-init.mk
+
+PROG = ttf-test
+SRCS = $(SRCDIR)/test.c
+CFLAGS += -I$(TOP)/include
+LDFLAGS = -L$(BUILDDIR)/..  -lttf
+include $(TMAKE_DIR)/tmake-prog.mk 
