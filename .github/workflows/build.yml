@@ -1,0 +1,25 @@
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure
+      run: mkdir -p build && cd build && ../configure
+
+    - name: Build
+      run: make -C build
+
+    - name: Install
+      run: sudo make install -C build
