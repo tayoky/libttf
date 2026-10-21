@@ -5,6 +5,7 @@
 
 ifneq ($(SRCDIRS),)
 	vpath %.c $(SRCDIRS)
+	vpath %.cxx $(SRCDIRS)
 	vpath %.s $(SRCDIRS)
 endif
 
@@ -22,6 +23,16 @@ $(BUILDDIR)/%.c.so : %.c
 	@mkdir -p "$(@D)"
 	@echo "CC $<"
 	$(Q)$(CC) $(CFLAGS) $(TMAKE_CFLAGS) -fpic -D__SHARED__=1 -o "$@" -c $<
+
+$(BUILDDIR)/%.c.o : %.cxx
+	@mkdir -p "$(@D)"
+	@echo "CXX $<"
+	$(Q)$(CXX) $(CXXFLAGS) $(TMAKE_CFLAGS) -o "$@" -c $<
+
+$(BUILDDIR)/%.c.so : %.cxx
+	@mkdir -p "$(@D)"
+	@echo "CXX $<"
+	$(Q)$(CXX) $(CXXFLAGS) $(TMAKE_CFLAGS) -fpic -D__SHARED__=1 -o "$@" -c $<
 
 $(BUILDDIR)/%.s.o : %.s
 	@mkdir -p "$(@D)"
